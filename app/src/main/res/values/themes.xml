@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DqdLite" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#071009</item>
+        <item name="android:statusBarColor">#071009</item>
+        <item name="android:navigationBarColor">#071009</item>
+        <item name="android:colorAccent">#00D11F</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
