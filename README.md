@@ -61,7 +61,8 @@
 
 ## 📦 APK 下载与安装
 
-- **预编译安装包**：[DqdLite-v2.2.apk](https://github.com/whh110112/Lite-DQD/releases)
+- **最新正式发布包**：[DqdLite-v2.3.apk (GitHub Release 下载)](https://github.com/whh110112/Lite-DQD/releases/download/v2.3/DqdLite-v2.3.apk)
+- **全部版本发布页**：[GitHub Releases 列表](https://github.com/whh110112/Lite-DQD/releases)
 - **最低兼容系统**：Android 8.0 (API Level 26) 及以上
 - **推荐目标系统**：Android 14 / 15 (API Level 34 / 35)
 
