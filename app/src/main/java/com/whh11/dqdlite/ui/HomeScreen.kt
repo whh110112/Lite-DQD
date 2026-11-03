@@ -21,6 +21,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.rounded.BrightnessAuto
+import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,19 +65,26 @@ fun HomeScreen(onOpen: (url: String, title: String) -> Unit) {
     ) {
         BrandHeader(onReload = { reload++ })
         SegmentTabs(
-            labels = listOf("资讯", "赛程"),
+            labels = listOf("资讯", "赛程", "圈子", "数据"),
             selected = tab,
             onSelect = { tab = it }
         )
         Box(Modifier.fillMaxSize()) {
-            if (tab == 0) NewsTab(reload = reload, onOpen = onOpen)
-            else MatchTab(reload = reload, onOpen = onOpen)
+            when (tab) {
+                0 -> NewsTab(reload = reload, onOpen = onOpen)
+                1 -> MatchTab(reload = reload, onOpen = onOpen)
+                2 -> CommunityTab(reload = reload, onOpen = onOpen)
+                else -> DataTab(reload = reload)
+            }
         }
     }
 }
 
 @Composable
 fun BrandHeader(onReload: () -> Unit) {
+    val context = LocalContext.current
+    val currentMode = ThemeManager.mode
+
     Row(
         Modifier
             .fillMaxWidth()
@@ -106,6 +118,30 @@ fun BrandHeader(onReload: () -> Unit) {
             Text("LITE", color = DqdColors.Green, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.weight(1f))
+
+        // 主题切换按钮（跟随系统 -> 白天 -> 夜间）
+        IconButton(onClick = {
+            val nextMode = when (currentMode) {
+                ThemeMode.SYSTEM -> ThemeMode.LIGHT
+                ThemeMode.LIGHT -> ThemeMode.DARK
+                ThemeMode.DARK -> ThemeMode.SYSTEM
+            }
+            ThemeManager.set(context, nextMode)
+            Toast.makeText(context, "切换模式: ${nextMode.label}", Toast.LENGTH_SHORT).show()
+        }) {
+            val icon = when (currentMode) {
+                ThemeMode.SYSTEM -> Icons.Rounded.BrightnessAuto
+                ThemeMode.LIGHT -> Icons.Rounded.LightMode
+                ThemeMode.DARK -> Icons.Rounded.DarkMode
+            }
+            Icon(
+                icon,
+                contentDescription = "切换主题模式",
+                tint = DqdColors.TextSecondary,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
         IconButton(onClick = onReload) {
             Icon(
                 Icons.Rounded.Refresh,

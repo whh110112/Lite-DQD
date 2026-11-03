@@ -13,9 +13,9 @@ data class News(
     val author: String,
     val url: String = ""
 ) {
-    /** 优先用接口给的 url（集锦会带 from=tab_xx 参数），没有就按 id 拼 */
+    /** 懂球帝文章移动端自适应页面，支持完整正文与评论展示 */
     val detailUrl: String
-        get() = url.ifBlank { "https://n.dongqiudi.com/webapp/news.html?articleId=$id" }
+        get() = if (id > 0) "https://m.dongqiudi.com/article/$id.html" else url.ifBlank { "https://m.dongqiudi.com" }
 }
 
 /**
@@ -40,7 +40,6 @@ data class Match(
     val isLive: Boolean get() = status == "Playing" || status == "Live"
     val hasScore: Boolean get() = scoreA.isNotBlank() && scoreB.isNotBlank()
 
-    /** 卡片右侧显示的比分或开赛时间 */
     val centreLabel: String
         get() = if (hasScore) "$scoreA - $scoreB" else timeUtc
 
@@ -55,3 +54,46 @@ data class Match(
 }
 
 data class FeedTab(val id: Int, val label: String)
+
+/** 懂球帝社区圈子模型 */
+data class DqdCircle(
+    val id: String,
+    val name: String,
+    val category: String,
+    val tabId: Int = 1,
+    val tag: String = ""
+)
+
+/** 懂球帝联赛数据榜单 */
+data class DqdLeague(
+    val id: String,
+    val name: String,
+    val category: String,
+    val standingUrl: String,
+    val scorersUrl: String = "",
+    val assistsUrl: String = ""
+)
+
+/** 积分榜行数据 */
+data class DqdStandingItem(
+    val rank: String,
+    val teamName: String,
+    val teamLogo: String?,
+    val played: String,
+    val win: String,
+    val draw: String,
+    val loss: String,
+    val goals: String,
+    val points: String
+)
+
+/** 球员榜行数据（射手、助攻） */
+data class DqdPlayerItem(
+    val rank: String,
+    val playerName: String,
+    val playerLogo: String?,
+    val teamName: String,
+    val teamLogo: String?,
+    val count: String,
+    val subCount: String = ""
+)

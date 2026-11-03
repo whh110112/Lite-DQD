@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.whh11.dqdlite.ui.ThemeManager.init(this)
         setContent {
             DqdTheme {
                 var detail by remember { mutableStateOf<Pair<String, String>?>(null) }
