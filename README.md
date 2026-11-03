@@ -44,7 +44,13 @@
 - 支持“设为主队”，主队专属标识一键置顶；
 - 支持皇马、巴萨、曼城、阿森纳、利物浦、曼联、拜仁、国足、中超、NBA、电竞圈等热门讨论区互动与全量评论浏览。
 
-### 6. 日夜间高对比度主题
+### 6. 文章详情页极致净化与全文秒开（v2.5 核心升级）
+- **击穿头条式截断折叠**：懂球帝新版移动端通过 `.tt-fold.folded` 强制对文章进行 60vh 截断并施加渐变遮罩。v2.5 深度注入破甲规则，彻底解除高度与溢出限制，文章全文无缝展开；
+- **根除全量导流与浮层**：彻底消除顶部“打开APP”条（`.tt-top`）、底部悬浮绿色“APP内打开”药丸按钮（`.tt-float`）、吸底栏（`.tt-bar`）与“点击查看完整内容”遮罩（`.tt-fade`, `.tt-more`）；
+- **MutationObserver 异步守护**：针对现代 Vue/Nuxt 单页应用的异步 Hydration 机制，动态监听 DOM 变动，确保在任何网络延迟与异步组件加载下，导流元素一旦注入即刻抹除，折叠状态永久解除；
+- **官方精彩评论免 App 原生渲染**：直接解析官方评论 API，在文章末尾以原生卡片流呈现球迷热评、点赞与时间，体验媲美甚至超越官方原生 App。
+
+### 7. 日夜间高对比度主题
 - 专为 OLED 屏幕优化的纯黑夜间高对比度主题与舒适白天阅读主题，支持一键切换与跟随系统。
 
 ---
@@ -54,14 +60,14 @@
 - **UI 框架**：Jetpack Compose 1.7 + Material 3
 - **网络通信**：OkHttp 4.12
 - **图片加载**：Coil 2.7 (Compose AsyncImage)
-- **页面交互**：Android WebView（文章深度长文与动态图集自适应渲染，内置广告屏蔽与横幅拦截注入引擎）
+- **页面交互**：Android WebView（文章深度长文与动态图集自适应渲染，内置 MutationObserver 广告屏蔽与横幅拦截注入引擎）
 - **构建工具**：Gradle 8.9 + Kotlin 2.0.21 + Android Gradle Plugin 8.5.2
 
 ---
 
 ## 📦 APK 下载与安装
 
-- **最新正式发布包**：[DqdLite-v2.3.apk (GitHub Release 下载)](https://github.com/whh110112/Lite-DQD/releases/download/v2.3/DqdLite-v2.3.apk)
+- **最新正式发布包**：[DqdLite-v2.5.apk (GitHub Release 下载)](https://github.com/whh110112/Lite-DQD/releases/download/v2.5/DqdLite-v2.5.apk)
 - **全部版本发布页**：[GitHub Releases 列表](https://github.com/whh110112/Lite-DQD/releases)
 - **最低兼容系统**：Android 8.0 (API Level 26) 及以上
 - **推荐目标系统**：Android 14 / 15 (API Level 34 / 35)

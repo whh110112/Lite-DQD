@@ -12,8 +12,8 @@ android {
         applicationId = "com.whh11.dqdlite"
         minSdk = 24
         targetSdk = 35
-        versionCode = 23
-        versionName = "2.3"
+        versionCode = 25
+        versionName = "2.5"
     }
 
     buildFeatures {
