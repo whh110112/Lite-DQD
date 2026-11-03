@@ -47,6 +47,9 @@ object DqdColors {
     val GreenSoft = Color(0xFF45E668)
     val GreenDeep = Color(0xFF00A818)
     val Accent = Color(0xFFFFC53D)
+    val Red = Color(0xFFE04E4C)
+
+    val Primary: Color get() = Green
 
     val Bg: Color
         @Composable get() = if (LocalIsDark.current) Color(0xFF071009) else Color(0xFFF4F6F4)
@@ -54,11 +57,17 @@ object DqdColors {
     val Surface: Color
         @Composable get() = if (LocalIsDark.current) Color(0xFF0E1A12) else Color(0xFFFFFFFF)
 
+    val Card: Color
+        @Composable get() = Surface
+
     val SurfaceHigh: Color
         @Composable get() = if (LocalIsDark.current) Color(0xFF17261B) else Color(0xFFEBF0EB)
 
     val Line: Color
         @Composable get() = if (LocalIsDark.current) Color(0xFF1F3325) else Color(0xFFE0E6E1)
+
+    val Border: Color
+        @Composable get() = Line
 
     val TextPrimary: Color
         @Composable get() = if (LocalIsDark.current) Color(0xFFE9F2EB) else Color(0xFF1A241C)

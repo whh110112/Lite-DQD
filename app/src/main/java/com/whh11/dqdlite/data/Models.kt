@@ -18,8 +18,17 @@ data class News(
         get() = if (id > 0) "https://m.dongqiudi.com/article/$id.html" else url.ifBlank { "https://m.dongqiudi.com" }
 }
 
+enum class SportCategory(val label: String, val apiPath: String) {
+    ALL("全部", ""),
+    SOCCER("足球", "soccer"),
+    BASKETBALL("篮球", "basketball"),
+    ESPORTS("电竞", "esport"),
+    TENNIS("网球", "tennis"),
+    SPORTS("体坛", "sport")
+}
+
 /**
- * 一场比赛。字段直接对齐懂球帝 matchListStore.matchList 的结构。
+ * 一场比赛。字段支持移动版比分页与各项目专用接口。
  */
 data class Match(
     val id: String,
@@ -34,20 +43,21 @@ data class Match(
     val competition: String,
     val competitionColor: String?,
     val startPlay: String,
-    val timeUtc: String
+    val timeUtc: String,
+    val category: String = "足球"
 ) {
-    val isPlayed: Boolean get() = status == "Played"
-    val isLive: Boolean get() = status == "Playing" || status == "Live"
+    val isPlayed: Boolean get() = status.equals("Played", ignoreCase = true) || status.contains("完")
+    val isLive: Boolean get() = status.equals("Playing", ignoreCase = true) || status.equals("Live", ignoreCase = true) || period.contains("分") || period.contains("节")
     val hasScore: Boolean get() = scoreA.isNotBlank() && scoreB.isNotBlank()
 
     val centreLabel: String
-        get() = if (hasScore) "$scoreA - $scoreB" else timeUtc
+        get() = if (hasScore) "$scoreA - $scoreB" else timeUtc.ifBlank { startPlay.takeLast(5) }
 
     val stateLabel: String
         get() = when {
             isLive -> period.ifBlank { "进行中" }
             isPlayed -> "完场"
-            else -> startPlay.take(10)
+            else -> if (startPlay.length >= 10) startPlay.substring(5, 10) else "未开赛"
         }
 
     val detailUrl: String get() = "https://m.dongqiudi.com/match/$id"
@@ -71,7 +81,9 @@ data class DqdLeague(
     val category: String,
     val standingUrl: String,
     val scorersUrl: String = "",
-    val assistsUrl: String = ""
+    val assistsUrl: String = "",
+    val isBasketball: Boolean = false,
+    val description: String = ""
 )
 
 /** 积分榜行数据 */
@@ -84,7 +96,11 @@ data class DqdStandingItem(
     val draw: String,
     val loss: String,
     val goals: String,
-    val points: String
+    val points: String,
+    val winRate: String = "",
+    val streak: String = "",
+    val gamesBehind: String = "",
+    val groupTitle: String = ""
 )
 
 /** 球员榜行数据（射手、助攻） */

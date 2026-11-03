@@ -46,19 +46,25 @@ import com.whh11.dqdlite.data.DqdPlayerItem
 import com.whh11.dqdlite.data.DqdStandingItem
 
 /**
- * 懂球帝官方联赛数据版。
- * 覆盖：欧冠、英超、西甲、德甲、意甲、中超、法甲、NBA、CBA
- * 功能：
- * 1. 积分榜（与官方数据版一致：排名、队徽、胜平负、进/失、积分、资格区高亮）
- * 2. 球员榜（射手榜、助攻榜，含球员头像、所属球队）
+ * 懂球帝全项目数据版。
+ * 覆盖：欧洲足球、亚洲足球、美洲足球、非洲足球、女子足球、全民足球、篮球、电竞、体坛与网球
  */
 @Composable
 fun DataTab(reload: Int) {
-    val leagues = DqdApi.LEAGUES
-    var leagueIndex by rememberSaveable { mutableIntStateOf(0) }
-    val currentLeague = leagues[leagueIndex]
+    val categories = listOf("全部", "欧洲足球", "亚洲足球", "美洲足球", "非洲足球", "女子足球", "全民足球", "篮球", "电竞", "体坛与网球")
+    var selectedCategoryIndex by rememberSaveable { mutableIntStateOf(0) }
+    val selectedCategory = categories[selectedCategoryIndex]
 
-    // 子维度：0: 积分榜, 1: 射手榜, 2: 助攻榜
+    val allLeagues = DqdApi.LEAGUES
+    val filteredLeagues = remember(selectedCategoryIndex) {
+        if (selectedCategory == "全部") allLeagues
+        else allLeagues.filter { it.category == selectedCategory }
+    }
+
+    var selectedLeagueIndex by rememberSaveable { mutableIntStateOf(0) }
+    val currentLeague = filteredLeagues.getOrNull(selectedLeagueIndex) ?: filteredLeagues.firstOrNull() ?: allLeagues.first()
+
+    // 0: 积分榜/排名, 1: 射手榜, 2: 助攻榜
     var subTab by rememberSaveable { mutableIntStateOf(0) }
 
     var standings by remember { mutableStateOf<List<DqdStandingItem>>(emptyList()) }
@@ -68,311 +74,373 @@ fun DataTab(reload: Int) {
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    val isBasketball = currentLeague.id == "nba" || currentLeague.id == "cba"
+    val hasScorers = currentLeague.scorersUrl.isNotBlank()
+    val hasAssists = currentLeague.assistsUrl.isNotBlank()
 
-    LaunchedEffect(leagueIndex, subTab, reload) {
+    LaunchedEffect(currentLeague, subTab, reload) {
         loading = true
         error = null
-        runCatching {
-            when {
-                subTab == 0 || isBasketball -> standings = DqdApi.fetchStandings(currentLeague)
-                subTab == 1 -> scorers = DqdApi.fetchScorers(currentLeague)
-                subTab == 2 -> assists = DqdApi.fetchAssists(currentLeague)
+        try {
+            when (subTab) {
+                0 -> standings = DqdApi.standings(currentLeague)
+                1 -> if (hasScorers) scorers = DqdApi.players(currentLeague.scorersUrl)
+                2 -> if (hasAssists) assists = DqdApi.players(currentLeague.assistsUrl)
             }
-        }.onFailure {
-            error = it.message ?: "加载榜单失败"
+        } catch (e: Exception) {
+            error = e.message ?: "加载数据失败"
+        } finally {
+            loading = false
         }
-        loading = false
     }
 
     Column(Modifier.fillMaxSize()) {
-        // 联赛选择栏（欧冠、英超、西甲、德甲、意甲、中超、法甲、NBA、CBA）
+        // 一级分类选择（欧洲、亚洲、美洲、非洲、女足、全民足球、篮球、电竞、体坛）
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp)
+            Modifier
+                .fillMaxWidth()
+                .background(DqdColors.Card)
+                .padding(vertical = 6.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            itemsIndexed(leagues) { i, l ->
-                val active = i == leagueIndex
+            itemsIndexed(categories) { index, cat ->
+                val active = index == selectedCategoryIndex
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (active) DqdColors.Primary else DqdColors.Border)
+                        .clickable {
+                            selectedCategoryIndex = index
+                            selectedLeagueIndex = 0
+                            subTab = 0
+                        }
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        cat,
+                        color = if (active) Color.White else DqdColors.TextPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+
+        // 二级联赛选择
+        LazyRow(
+            Modifier
+                .fillMaxWidth()
+                .background(DqdColors.Bg)
+                .padding(vertical = 6.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            itemsIndexed(filteredLeagues) { index, league ->
+                val active = league.id == currentLeague.id
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (active) DqdColors.Green else DqdColors.Surface)
+                        .background(if (active) DqdColors.Primary.copy(alpha = 0.15f) else DqdColors.Card)
                         .clickable {
-                            leagueIndex = i
-                            if (isBasketball) subTab = 0
+                            selectedLeagueIndex = index
+                            subTab = 0
                         }
-                        .padding(horizontal = 13.dp, vertical = 6.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        l.name,
-                        color = if (active) Color(0xFF00210A) else DqdColors.TextSecondary,
+                        league.name,
+                        color = if (active) DqdColors.Primary else DqdColors.TextPrimary,
                         fontSize = 13.sp,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
                     )
                 }
             }
         }
 
-        // 子榜单切换（足球支持：积分榜、射手榜、助攻榜）
-        if (!isBasketball) {
+        // 三级维度（积分/排名、射手榜、助攻榜）
+        if (hasScorers || hasAssists) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val subTabs = listOf("积分榜", "射手榜", "助攻榜")
-                subTabs.forEachIndexed { i, label ->
-                    val active = i == subTab
+                listOf("积分榜", "射手榜", "助攻榜").forEachIndexed { index, title ->
+                    if (index == 0 || (index == 1 && hasScorers) || (index == 2 && hasAssists)) {
+                        val active = subTab == index
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (active) DqdColors.Primary else DqdColors.Card)
+                                .clickable { subTab = index }
+                                .padding(horizontal = 12.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                title,
+                                color = if (active) Color.White else DqdColors.TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Box(Modifier.fillMaxSize()) {
+            when {
+                loading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = DqdColors.Primary, modifier = Modifier.size(32.dp))
+                    }
+                }
+                error != null && standings.isEmpty() && scorers.isEmpty() && assists.isEmpty() -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(error ?: "网络加载失败", color = DqdColors.TextSecondary, fontSize = 14.sp)
+                    }
+                }
+                subTab == 0 -> {
+                    StandingsView(standings = standings, isBasketball = currentLeague.isBasketball)
+                }
+                subTab == 1 -> {
+                    PlayersView(players = scorers, statName = "进球")
+                }
+                else -> {
+                    PlayersView(players = assists, statName = "助攻")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StandingsView(standings: List<DqdStandingItem>, isBasketball: Boolean) {
+    if (standings.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("暂无积分排行数据", color = DqdColors.TextSecondary, fontSize = 14.sp)
+        }
+        return
+    }
+
+    val grouped = standings.groupBy { it.groupTitle }
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        grouped.forEach { (groupTitle, list) ->
+            if (groupTitle.isNotBlank()) {
+                item(key = "g_$groupTitle") {
                     Box(
                         Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (active) DqdColors.Green.copy(alpha = 0.16f) else DqdColors.SurfaceHigh)
-                            .clickable { subTab = i }
-                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
                     ) {
                         Text(
-                            label,
-                            color = if (active) DqdColors.Green else DqdColors.TextTertiary,
-                            fontSize = 12.sp,
-                            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal
+                            groupTitle,
+                            color = DqdColors.Primary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
             }
-        }
 
-        when {
-            loading -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = DqdColors.Green, modifier = Modifier.size(28.dp))
-                }
-            }
-            error != null -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(error!!, color = DqdColors.TextTertiary, fontSize = 13.sp)
-                }
-            }
-            subTab == 0 || isBasketball -> {
-                StandingTable(standings, isBasketball)
-            }
-            subTab == 1 -> {
-                PlayerTable(scorers, "进球")
-            }
-            else -> {
-                PlayerTable(assists, "助攻")
-            }
-        }
-    }
-}
-
-@Composable
-private fun StandingTable(list: List<DqdStandingItem>, isBasketball: Boolean) {
-    if (list.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("暂无积分榜数据", color = DqdColors.TextTertiary, fontSize = 13.sp)
-        }
-        return
-    }
-
-    LazyColumn(
-        contentPadding = PaddingValues(bottom = 24.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        item {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(DqdColors.Surface)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("#", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
-                Text("球队", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.weight(1f))
-                Text(if (isBasketball) "场次" else "赛", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.width(30.dp), textAlign = TextAlign.Center)
-                Text(if (isBasketball) "胜" else "胜", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.width(30.dp), textAlign = TextAlign.Center)
-                Text(if (isBasketball) "近况" else "平", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
-                Text(if (isBasketball) "负" else "负", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.width(30.dp), textAlign = TextAlign.Center)
-                Text(if (isBasketball) "胜率" else "进/失", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.width(42.dp), textAlign = TextAlign.Center)
-                Text(if (isBasketball) "胜差" else "积分", color = DqdColors.Green, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp), textAlign = TextAlign.Center)
-            }
-        }
-
-        itemsIndexed(list) { i, itm ->
-            val rankNum = itm.rank.toIntOrNull() ?: (i + 1)
-            val isTopZone = rankNum in 1..4
-
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(if (isTopZone && !isBasketball) DqdColors.Green.copy(alpha = 0.04f) else Color.Transparent)
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    itm.rank,
-                    color = if (isTopZone) DqdColors.Green else DqdColors.TextTertiary,
-                    fontSize = 12.sp,
-                    fontWeight = if (isTopZone) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.width(24.dp),
-                    textAlign = TextAlign.Center
-                )
-
-                if (itm.teamLogo != null) {
-                    AsyncImage(
-                        model = itm.teamLogo,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .padding(end = 6.dp)
-                    )
-                }
-
-                Text(
-                    itm.teamName,
-                    color = DqdColors.TextPrimary,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-
-                Text(itm.played, color = DqdColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.width(30.dp), textAlign = TextAlign.Center)
-                Text(itm.win, color = DqdColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.width(30.dp), textAlign = TextAlign.Center)
-                Text(itm.draw, color = DqdColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
-                Text(itm.loss, color = DqdColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.width(30.dp), textAlign = TextAlign.Center)
-                Text(itm.goals, color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.width(42.dp), textAlign = TextAlign.Center)
-                Text(
-                    itm.points,
-                    color = DqdColors.Green,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(36.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
-
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(0.6.dp)
-                    .padding(horizontal = 14.dp)
-                    .background(DqdColors.Line.copy(alpha = 0.4f))
-            )
-        }
-    }
-}
-
-@Composable
-private fun PlayerTable(list: List<DqdPlayerItem>, countLabel: String) {
-    if (list.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("暂无球员统计数据", color = DqdColors.TextTertiary, fontSize = 13.sp)
-        }
-        return
-    }
-
-    LazyColumn(
-        contentPadding = PaddingValues(bottom = 24.dp),
-        modifier = Modifier.fillMaxSize()
-    ) {
-        item {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(DqdColors.Surface)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("#", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.width(26.dp), textAlign = TextAlign.Center)
-                Text("球员", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.weight(1f))
-                Text("球队", color = DqdColors.TextTertiary, fontSize = 11.5.sp, modifier = Modifier.weight(0.7f))
-                Text(countLabel, color = DqdColors.Green, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(44.dp), textAlign = TextAlign.Center)
-            }
-        }
-
-        itemsIndexed(list) { i, itm ->
-            val rankNum = itm.rank.toIntOrNull() ?: (i + 1)
-            val isTopThree = rankNum in 1..3
-
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    itm.rank,
-                    color = if (isTopThree) DqdColors.Accent else DqdColors.TextTertiary,
-                    fontSize = 12.5.sp,
-                    fontWeight = if (isTopThree) FontWeight.Bold else FontWeight.Normal,
-                    modifier = Modifier.width(26.dp),
-                    textAlign = TextAlign.Center
-                )
-
-                if (itm.playerLogo != null) {
-                    AsyncImage(
-                        model = itm.playerLogo,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(DqdColors.SurfaceHigh)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                }
-
-                Text(
-                    itm.playerName,
-                    color = DqdColors.TextPrimary,
-                    fontSize = 13.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-
-                Text(
-                    itm.teamName,
-                    color = DqdColors.TextSecondary,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(0.7f)
-                )
-
+            // 表头
+            item(key = "header_$groupTitle") {
                 Row(
-                    modifier = Modifier.width(44.dp),
-                    horizontalArrangement = Arrangement.Center,
+                    Modifier
+                        .fillMaxWidth()
+                        .background(DqdColors.Card)
+                        .padding(horizontal = 10.dp, vertical = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        itm.count,
-                        color = DqdColors.Green,
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (itm.subCount.isNotBlank()) {
-                        Text(
-                            itm.subCount,
-                            color = DqdColors.TextTertiary,
-                            fontSize = 9.sp,
-                            modifier = Modifier.padding(start = 2.dp)
-                        )
+                    Text("#", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
+                    Text("球队", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                    if (isBasketball) {
+                        Text("胜/负", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(55.dp), textAlign = TextAlign.Center)
+                        Text("胜率", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(50.dp), textAlign = TextAlign.Center)
+                        Text("胜差", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
+                    } else {
+                        Text("赛", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(28.dp), textAlign = TextAlign.Center)
+                        Text("胜/平/负", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(62.dp), textAlign = TextAlign.Center)
+                        Text("净", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
+                        Text("分", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
                     }
                 }
             }
 
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(0.6.dp)
-                    .padding(horizontal = 14.dp)
-                    .background(DqdColors.Line.copy(alpha = 0.4f))
+            itemsIndexed(list, key = { index, item -> "${groupTitle}_${item.rank}_${item.teamName}_$index" }) { _, row ->
+                StandingRow(row = row, isBasketball = isBasketball)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StandingRow(row: DqdStandingItem, isBasketball: Boolean) {
+    val rankInt = row.rank.toIntOrNull() ?: 99
+    val rankColor = when (rankInt) {
+        1 -> Color(0xFFE53935)
+        2 -> Color(0xFFFF9800)
+        3 -> Color(0xFFFBC02D)
+        in 4..6 -> DqdColors.Primary
+        else -> DqdColors.TextSecondary
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp)
+            .background(DqdColors.Card)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            row.rank,
+            color = rankColor,
+            fontSize = 12.sp,
+            fontWeight = if (rankInt <= 3) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.width(24.dp),
+            textAlign = TextAlign.Center
+        )
+
+        Row(
+            Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (!row.teamLogo.isNullOrBlank()) {
+                AsyncImage(
+                    model = row.teamLogo,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                row.teamName,
+                color = DqdColors.TextPrimary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
+
+        if (isBasketball) {
+            Text("${row.win}/${row.loss}", color = DqdColors.TextPrimary, fontSize = 11.sp, modifier = Modifier.width(55.dp), textAlign = TextAlign.Center)
+            Text(row.winRate.ifBlank { row.points }, color = DqdColors.TextPrimary, fontSize = 11.sp, modifier = Modifier.width(50.dp), textAlign = TextAlign.Center)
+            Text(row.gamesBehind.ifBlank { "-" }, color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(40.dp), textAlign = TextAlign.Center)
+        } else {
+            Text(row.played, color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(28.dp), textAlign = TextAlign.Center)
+            Text("${row.win}/${row.draw}/${row.loss}", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(62.dp), textAlign = TextAlign.Center)
+            Text(row.goals, color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
+            Text(row.points, color = DqdColors.Primary, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
+        }
+    }
+}
+
+@Composable
+private fun PlayersView(players: List<DqdPlayerItem>, statName: String) {
+    if (players.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("暂无球员排行榜数据", color = DqdColors.TextSecondary, fontSize = 14.sp)
+        }
+        return
+    }
+
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        item {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(DqdColors.Card)
+                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("#", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
+                Text("球员", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                Text("球队", color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(100.dp))
+                Text(statName, color = DqdColors.TextSecondary, fontSize = 11.sp, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
+            }
+        }
+
+        itemsIndexed(players, key = { index, p -> "${p.rank}_${p.playerName}_$index" }) { _, player ->
+            PlayerRow(player = player)
+        }
+    }
+}
+
+@Composable
+private fun PlayerRow(player: DqdPlayerItem) {
+    val rankInt = player.rank.toIntOrNull() ?: 99
+    val rankColor = when (rankInt) {
+        1 -> Color(0xFFE53935)
+        2 -> Color(0xFFFF9800)
+        3 -> Color(0xFFFBC02D)
+        else -> DqdColors.TextSecondary
+    }
+
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp)
+            .background(DqdColors.Card)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            player.rank,
+            color = rankColor,
+            fontSize = 12.sp,
+            fontWeight = if (rankInt <= 3) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.width(24.dp),
+            textAlign = TextAlign.Center
+        )
+
+        Row(
+            Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (!player.playerLogo.isNullOrBlank()) {
+                AsyncImage(
+                    model = player.playerLogo,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                )
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(
+                player.playerName,
+                color = DqdColors.TextPrimary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Text(
+            player.teamName,
+            color = DqdColors.TextSecondary,
+            fontSize = 11.sp,
+            modifier = Modifier.width(100.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Text(
+            player.count,
+            color = DqdColors.Primary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.width(48.dp),
+            textAlign = TextAlign.End
+        )
     }
 }
