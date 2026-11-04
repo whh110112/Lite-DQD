@@ -226,74 +226,88 @@ object Injector {
 
   // 抓取并注入评论
   var commentsLoaded = false;
+
+  // 原生桥回填入口：CommentBridge 拉到 JSON 后调这里
+  window.__dqdOnComments = function(aid, raw){
+    var res;
+    try { res = (typeof raw === 'string') ? JSON.parse(raw) : raw; } catch(e){ return; }
+    if (!res || !res.data) return;
+
+    var data = res.data;
+    var list = (data.recommend_list && data.recommend_list.length > 0) ? data.recommend_list : data.comment_list;
+    if (!list || list.length === 0) return;
+    commentsLoaded = true;
+
+    var usersMap = {};
+    if (data.user_list && Array.isArray(data.user_list)) {
+      data.user_list.forEach(function(u){ usersMap[u.id] = u; });
+    }
+
+    var box = document.getElementById('__dqd_comments_box');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = '__dqd_comments_box';
+      box.style.padding = '16px 14px 40px 14px';
+
+      var copyright = document.querySelector('.tt-copyright');
+      var commentWrapper = document.getElementById('commentWrapper');
+      var fold = document.querySelector('.tt-fold');
+      var art = document.querySelector('article');
+
+      if (copyright && copyright.parentNode) {
+        copyright.parentNode.insertBefore(box, copyright);
+      } else if (commentWrapper) {
+        commentWrapper.appendChild(box);
+      } else if (fold && fold.parentNode) {
+        fold.parentNode.insertBefore(box, fold.nextSibling);
+      } else if (art && art.parentNode) {
+        art.parentNode.insertBefore(box, art.nextSibling);
+      } else {
+        document.body.appendChild(box);
+      }
+    }
+
+    var headerHtml = '<div style="font-size:16px;font-weight:bold;margin:18px 0 12px 0;padding-left:4px;border-left:3px solid #00D11F;">精彩评论 (' + (data.comment_total || list.length) + ')</div>';
+    var itemsHtml = '';
+
+    list.forEach(function(c){
+      var u = usersMap[c.user_id] || { username: '热心球友', avatar: 'https://img1.dongqiudi.com/fastdfs1/M00/3B/EF/100x100/-/-/o4YBAFjM9lqAel9GAAAQrsgeQ3A103.jpg' };
+      var content = c.content || c.content_old || '';
+      var time = c.created_at || '';
+      var up = c.up_count || c.up || 0;
+
+      itemsHtml += '<div class="comment-card" style="padding:12px 4px;margin-bottom:8px;">' +
+        '<div style="display:flex;align-items:center;margin-bottom:6px;">' +
+          '<img src="' + u.avatar + '" style="width:28px;height:28px;border-radius:14px;margin-right:8px;object-fit:cover;" onerror="this.style.display=\'none\'" />' +
+          '<div style="flex:1;">' +
+            '<div class="comment-user" style="font-size:12.5px;font-weight:600;">' + u.username + '</div>' +
+            '<div class="comment-time" style="font-size:10.5px;">' + time + '</div>' +
+          '</div>' +
+          '<div class="comment-up" style="font-size:11.5px;">👍 ' + up + '</div>' +
+        '</div>' +
+        '<div class="comment-body" style="font-size:14px;line-height:1.5;padding-left:36px;">' + content + '</div>' +
+      '</div>';
+    });
+
+    box.innerHTML = headerHtml + itemsHtml;
+  };
+
   function loadComments(){
     if (commentsLoaded) return;
     var m = window.location.href.match(/article[\/=](\d+)/);
     if (!m) return;
     var aid = m[1];
 
+    // 优先走原生桥：页面内 fetch 到 api.dongqiudi.com 属跨域，
+    // 没有 CORS 头会被浏览器直接拦掉（这就是之前评论一直不显示的原因）
+    if (window.DqdNative && window.DqdNative.loadComments) {
+      try { window.DqdNative.loadComments(aid); return; } catch(e){}
+    }
+
+    // 兜底：浏览器环境下同源策略宽松一些，直接 fetch 仍然可用
     fetch('https://api.dongqiudi.com/v2/article/' + aid + '/comment')
       .then(function(r){ return r.json(); })
-      .then(function(res){
-        if (!res || !res.data) return;
-        var data = res.data;
-        var list = (data.recommend_list && data.recommend_list.length > 0) ? data.recommend_list : data.comment_list;
-        if (!list || list.length === 0) return;
-        commentsLoaded = true;
-
-        var usersMap = {};
-        if (data.user_list && Array.isArray(data.user_list)) {
-          data.user_list.forEach(function(u){ usersMap[u.id] = u; });
-        }
-
-        var box = document.getElementById('__dqd_comments_box');
-        if (!box) {
-          box = document.createElement('div');
-          box.id = '__dqd_comments_box';
-          box.style.padding = '16px 14px 40px 14px';
-
-          var copyright = document.querySelector('.tt-copyright');
-          var commentWrapper = document.getElementById('commentWrapper');
-          var fold = document.querySelector('.tt-fold');
-          var art = document.querySelector('article');
-
-          if (copyright && copyright.parentNode) {
-            copyright.parentNode.insertBefore(box, copyright);
-          } else if (commentWrapper) {
-            commentWrapper.appendChild(box);
-          } else if (fold && fold.parentNode) {
-            fold.parentNode.insertBefore(box, fold.nextSibling);
-          } else if (art && art.parentNode) {
-            art.parentNode.insertBefore(box, art.nextSibling);
-          } else {
-            document.body.appendChild(box);
-          }
-        }
-
-        var headerHtml = '<div style="font-size:16px;font-weight:bold;margin:18px 0 12px 0;padding-left:4px;border-left:3px solid #00D11F;">精彩评论 (' + (data.comment_total || list.length) + ')</div>';
-        var itemsHtml = '';
-
-        list.forEach(function(c){
-          var u = usersMap[c.user_id] || { username: '热心球友', avatar: 'https://img1.dongqiudi.com/fastdfs1/M00/3B/EF/100x100/-/-/o4YBAFjM9lqAel9GAAAQrsgeQ3A103.jpg' };
-          var content = c.content || c.content_old || '';
-          var time = c.created_at || '';
-          var up = c.up_count || c.up || 0;
-
-          itemsHtml += '<div class="comment-card" style="padding:12px 4px;margin-bottom:8px;">' +
-            '<div style="display:flex;align-items:center;margin-bottom:6px;">' +
-              '<img src="' + u.avatar + '" style="width:28px;height:28px;border-radius:14px;margin-right:8px;object-fit:cover;" onerror="this.style.display=\'none\'" />' +
-              '<div style="flex:1;">' +
-                '<div class="comment-user" style="font-size:12.5px;font-weight:600;">' + u.username + '</div>' +
-                '<div class="comment-time" style="font-size:10.5px;">' + time + '</div>' +
-              '</div>' +
-              '<div class="comment-up" style="font-size:11.5px;">👍 ' + up + '</div>' +
-            '</div>' +
-            '<div class="comment-body" style="font-size:14px;line-height:1.5;padding-left:36px;">' + content + '</div>' +
-          '</div>';
-        });
-
-        box.innerHTML = headerHtml + itemsHtml;
-      })
+      .then(function(res){ window.__dqdOnComments(aid, res); })
       .catch(function(e){ console.log('load comment err', e); });
   }
 

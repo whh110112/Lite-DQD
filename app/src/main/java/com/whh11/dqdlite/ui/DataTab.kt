@@ -49,8 +49,12 @@ import com.whh11.dqdlite.data.DqdStandingItem
  * 懂球帝全项目数据版。
  * 覆盖：欧洲足球、亚洲足球、美洲足球、非洲足球、女子足球、全民足球、篮球、电竞、体坛与网球
  */
+/** 队名/球员名含空格、中点等字符时，拼进 URL 前必须编码 */
+private fun urlEncode(s: String): String =
+    runCatching { java.net.URLEncoder.encode(s, "UTF-8") }.getOrDefault(s)
+
 @Composable
-fun DataTab(reload: Int) {
+fun DataTab(reload: Int, onOpen: (String, String) -> Unit) {
     val categories = listOf("全部", "欧洲足球", "亚洲足球", "美洲足球", "非洲足球", "女子足球", "全民足球", "篮球", "电竞", "体坛与网球")
     var selectedCategoryIndex by rememberSaveable { mutableIntStateOf(0) }
     val selectedCategory = categories[selectedCategoryIndex]
@@ -200,13 +204,38 @@ fun DataTab(reload: Int) {
                     }
                 }
                 subTab == 0 -> {
-                    StandingsView(standings = standings, isBasketball = currentLeague.isBasketball)
+                    StandingsView(
+                        standings = standings,
+                        isBasketball = currentLeague.isBasketball,
+                        onClick = { row ->
+                            val url = if (row.teamId.isNotBlank()) {
+                                "https://www.dongqiudi.com/team/${row.teamId}"
+                            } else {
+                                "https://www.dongqiudi.com/search?keyword=" + urlEncode(row.teamName)
+                            }
+                            onOpen(url, row.teamName)
+                        }
+                    )
                 }
                 subTab == 1 -> {
-                    PlayersView(players = scorers, statName = "进球")
+                    PlayersView(players = scorers, statName = "进球") { p ->
+                        val url = if (p.playerId.isNotBlank()) {
+                            "https://www.dongqiudi.com/player/${p.playerId}"
+                        } else {
+                            "https://www.dongqiudi.com/search?keyword=" + urlEncode(p.playerName)
+                        }
+                        onOpen(url, p.playerName)
+                    }
                 }
                 else -> {
-                    PlayersView(players = assists, statName = "助攻")
+                    PlayersView(players = assists, statName = "助攻") { p ->
+                        val url = if (p.playerId.isNotBlank()) {
+                            "https://www.dongqiudi.com/player/${p.playerId}"
+                        } else {
+                            "https://www.dongqiudi.com/search?keyword=" + urlEncode(p.playerName)
+                        }
+                        onOpen(url, p.playerName)
+                    }
                 }
             }
         }
@@ -214,7 +243,11 @@ fun DataTab(reload: Int) {
 }
 
 @Composable
-private fun StandingsView(standings: List<DqdStandingItem>, isBasketball: Boolean) {
+private fun StandingsView(
+    standings: List<DqdStandingItem>,
+    isBasketball: Boolean,
+    onClick: (DqdStandingItem) -> Unit
+) {
     if (standings.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("暂无积分排行数据", color = DqdColors.TextSecondary, fontSize = 14.sp)
@@ -271,14 +304,14 @@ private fun StandingsView(standings: List<DqdStandingItem>, isBasketball: Boolea
             }
 
             itemsIndexed(list, key = { index, item -> "${groupTitle}_${item.rank}_${item.teamName}_$index" }) { _, row ->
-                StandingRow(row = row, isBasketball = isBasketball)
+                StandingRow(row = row, isBasketball = isBasketball) { onClick(row) }
             }
         }
     }
 }
 
 @Composable
-private fun StandingRow(row: DqdStandingItem, isBasketball: Boolean) {
+private fun StandingRow(row: DqdStandingItem, isBasketball: Boolean, onClick: () -> Unit) {
     val rankInt = row.rank.toIntOrNull() ?: 99
     val rankColor = when (rankInt) {
         1 -> Color(0xFFE53935)
@@ -291,19 +324,36 @@ private fun StandingRow(row: DqdStandingItem, isBasketball: Boolean) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 1.dp)
+            .padding(vertical = 0.5.dp)
+            .clip(RoundedCornerShape(5.dp))
             .background(DqdColors.Card)
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            row.rank,
-            color = rankColor,
-            fontSize = 12.sp,
-            fontWeight = if (rankInt <= 3) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.width(24.dp),
-            textAlign = TextAlign.Center
-        )
+        // 排名 + 升降箭头（官方接口提供 last_rank）
+        Column(
+            Modifier.width(26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                row.rank,
+                color = rankColor,
+                fontSize = 12.sp,
+                fontWeight = if (rankInt <= 3) FontWeight.Bold else FontWeight.Normal,
+                textAlign = TextAlign.Center
+            )
+            row.rankDelta?.let { d ->
+                if (d != 0) {
+                    Text(
+                        if (d > 0) "▲$d" else "▼${-d}",
+                        color = if (d > 0) DqdColors.Green else DqdColors.Red,
+                        fontSize = 7.sp,
+                        lineHeight = 8.sp
+                    )
+                }
+            }
+        }
 
         Row(
             Modifier.weight(1f),
@@ -314,14 +364,15 @@ private fun StandingRow(row: DqdStandingItem, isBasketball: Boolean) {
                     model = row.teamLogo,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(7.dp))
             }
             Text(
                 row.teamName,
                 color = DqdColors.TextPrimary,
-                fontSize = 12.sp,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -341,7 +392,11 @@ private fun StandingRow(row: DqdStandingItem, isBasketball: Boolean) {
 }
 
 @Composable
-private fun PlayersView(players: List<DqdPlayerItem>, statName: String) {
+private fun PlayersView(
+    players: List<DqdPlayerItem>,
+    statName: String,
+    onClick: (DqdPlayerItem) -> Unit
+) {
     if (players.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("暂无球员排行榜数据", color = DqdColors.TextSecondary, fontSize = 14.sp)
@@ -369,13 +424,13 @@ private fun PlayersView(players: List<DqdPlayerItem>, statName: String) {
         }
 
         itemsIndexed(players, key = { index, p -> "${p.rank}_${p.playerName}_$index" }) { _, player ->
-            PlayerRow(player = player)
+            PlayerRow(player = player) { onClick(player) }
         }
     }
 }
 
 @Composable
-private fun PlayerRow(player: DqdPlayerItem) {
+private fun PlayerRow(player: DqdPlayerItem, onClick: () -> Unit) {
     val rankInt = player.rank.toIntOrNull() ?: 99
     val rankColor = when (rankInt) {
         1 -> Color(0xFFE53935)
@@ -387,8 +442,10 @@ private fun PlayerRow(player: DqdPlayerItem) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 1.dp)
+            .padding(vertical = 0.5.dp)
+            .clip(RoundedCornerShape(5.dp))
             .background(DqdColors.Card)
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

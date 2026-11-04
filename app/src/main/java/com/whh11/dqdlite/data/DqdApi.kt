@@ -80,21 +80,24 @@ object DqdApi {
             name = "欧冠",
             category = "欧洲足球",
             standingUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E7%A7%AF%E5%88%86%E6%A6%9C&tab=%E7%A7%AF%E5%88%86%E6%A6%9C&league_id=371&league=%E6%AC%A7%E6%B4%B2%E5%86%A0%E5%86%9B%E8%81%94%E8%B5%9B",
-            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=371&league=%E6%AC%A7%E6%B4%B2%E5%86%A0%E5%86%9B%E8%81%94%E8%B5%9B"
+            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=371&league=%E6%AC%A7%E6%B4%B2%E5%86%A0%E5%86%9B%E8%81%94%E8%B5%9B",
+            competitionId = 6
         ),
         DqdLeague(
             id = "epl",
             name = "英超",
             category = "欧洲足球",
             standingUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E7%A7%AF%E5%88%86%E6%A6%9C&tab=%E7%A7%AF%E5%88%86%E6%A6%9C&league_id=24&league=%E8%8B%B1%E8%B6%85",
-            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=24&league=%E8%8B%B1%E8%B6%85"
+            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=24&league=%E8%8B%B1%E8%B6%85",
+            competitionId = 4
         ),
         DqdLeague(
             id = "laliga",
             name = "西甲",
             category = "欧洲足球",
             standingUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E7%A7%AF%E5%88%86%E6%A6%9C&tab=%E7%A7%AF%E5%88%86%E6%A6%9C&league_id=25&league=%E8%A5%BF%E7%94%B2",
-            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=25&league=%E8%A5%BF%E7%94%B2"
+            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=25&league=%E8%A5%BF%E7%94%B2",
+            competitionId = 3
         ),
         DqdLeague(
             id = "seriea",
@@ -108,14 +111,16 @@ object DqdApi {
             name = "德甲",
             category = "欧洲足球",
             standingUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E7%A7%AF%E5%88%86%E6%A6%9C&tab=%E7%A7%AF%E5%88%86%E6%A6%9C&league_id=27&league=%E5%BE%B7%E7%94%B2",
-            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=27&league=%E5%BE%B7%E7%94%B2"
+            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=27&league=%E5%BE%B7%E7%94%B2",
+            competitionId = 5
         ),
         DqdLeague(
             id = "ligue1",
             name = "法甲",
             category = "欧洲足球",
             standingUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E7%A7%AF%E5%88%86%E6%A6%9C&tab=%E7%A7%AF%E5%88%86%E6%A6%9C&league_id=28&league=%E6%B3%95%E7%94%B2",
-            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=28&league=%E6%B3%95%E7%94%B2"
+            scorersUrl = "https://stats.qiumibao.com/shuju/public/index.php?_url=/data/index&year=&type=%E8%BF%9B%E7%90%83&tab=%E7%90%83%E5%91%98%E6%A6%9C&league_id=28&league=%E6%B3%95%E7%94%B2",
+            competitionId = 12
         ),
         DqdLeague(
             id = "uel",
@@ -515,10 +520,81 @@ object DqdApi {
      * 联赛积分榜/排名数据获取
      */
     suspend fun standings(league: DqdLeague): List<DqdStandingItem> = withContext(Dispatchers.IO) {
+        // 官方数据中台优先：带 team_id，列表行才能点进球队页
+        if (league.competitionId > 0) {
+            val official = runCatching { officialStandings(league.competitionId) }.getOrNull()
+            if (!official.isNullOrEmpty()) return@withContext official
+        }
+        // 退回第三方榜单（无 team_id，球队页会降级为该队新闻）
         val req = Request.Builder().url(league.standingUrl).header("User-Agent", UA).build()
         val res = client.newCall(req).execute()
         val json = res.body?.string().orEmpty()
         parseStandingsJson(json, league)
+    }
+
+    /**
+     * 懂球帝官方数据中台的积分榜。
+     *
+     * GET sport-data.dongqiudi.com/soccer/biz/data/standing?competition_id=X
+     * 结构：content.rounds[].content.data[]
+     * 每项字段：team_id / team_name / team_logo / rank / last_rank /
+     *          matches_total / matches_won / matches_draw / matches_lost /
+     *          goals_pro / goals_against / points
+     *
+     * 实测 competition_id：4=英超 3=西甲 5=德甲 12=法甲 6=欧冠 1=荷甲 36=苏超
+     * 注意这套 id 与资讯 tab 的 id（3=英超 4=意甲）**不是同一套**，别混用。
+     */
+    private fun officialStandings(competitionId: Int): List<DqdStandingItem> {
+        val url = "https://sport-data.dongqiudi.com/soccer/biz/data/standing?competition_id=$competitionId"
+        val req = Request.Builder()
+            .url(url)
+            .header("User-Agent", UA)
+            .header("Referer", "https://m.dongqiudi.com/")
+            .build()
+        val res = client.newCall(req).execute()
+        val json = res.body?.string().orEmpty()
+        val out = ArrayList<DqdStandingItem>()
+
+        val root = runCatching { JSONObject(json) }.getOrNull() ?: return out
+        val content = root.optJSONObject("content") ?: return out
+        val rounds = content.optJSONArray("rounds") ?: return out
+
+        for (ri in 0 until rounds.length()) {
+            val round = rounds.optJSONObject(ri) ?: continue
+            val rc = round.optJSONObject("content") ?: continue
+            val groupName = rc.optString("name")
+            val list = rc.optJSONArray("data") ?: continue
+
+            for (i in 0 until list.length()) {
+                val o = list.optJSONObject(i) ?: continue
+                val teamName = o.optString("team_name").trim()
+                if (teamName.isBlank()) continue
+
+                val rank = o.optInt("rank", i + 1).let { if (it <= 0) i + 1 else it }
+                val lastRank = o.optInt("last_rank", 0)
+                val gp = o.optInt("goals_pro", 0)
+                val ga = o.optInt("goals_against", 0)
+
+                out.add(
+                    DqdStandingItem(
+                        rank = rank.toString(),
+                        teamName = teamName,
+                        teamLogo = o.optString("team_logo").takeIf { it.isNotBlank() },
+                        played = o.optInt("matches_total", 0).toString(),
+                        win = o.optInt("matches_won", 0).toString(),
+                        draw = o.optInt("matches_draw", 0).toString(),
+                        loss = o.optInt("matches_lost", 0).toString(),
+                        goals = "$gp/$ga",
+                        points = o.optInt("points", 0).toString(),
+                        // 单组赛事不显示分组标题，多组（争冠/保级）才显示
+                        groupTitle = if (rounds.length() > 1) groupName else "",
+                        teamId = o.optString("team_id"),
+                        rankDelta = if (lastRank > 0) lastRank - rank else null
+                    )
+                )
+            }
+        }
+        return out
     }
 
     private fun parseStandingsJson(json: String, league: DqdLeague): List<DqdStandingItem> {
@@ -640,11 +716,16 @@ object DqdApi {
                 DqdPlayerItem(
                     rank = o.optString("排名", (i + 1).toString()),
                     playerName = playerName.trim(),
-                    playerLogo = o.optString("球员头像").takeIf { it.isNotBlank() },
+                    // 实测字段名是「球员图标」，早期写成「球员头像」导致头像一直为空
+                    playerLogo = o.optString("球员图标")
+                        .ifBlank { o.optString("球员头像") }
+                        .takeIf { it.isNotBlank() },
                     teamName = o.optString("球队").trim(),
                     teamLogo = o.optString("球队图标").takeIf { it.isNotBlank() },
                     count = o.optString("进球", o.optString("助攻", o.optString("数值"))),
-                    subCount = o.optString("点球").takeIf { it.isNotBlank() }?.let { "点球 $it" } ?: ""
+                    subCount = o.optString("点球").takeIf { it.isNotBlank() }?.let { "点球 $it" } ?: "",
+                    playerId = o.optString("playerId").ifBlank { o.optString("球员id") },
+                    teamId = o.optString("teamId").ifBlank { o.optString("球队id") }
                 )
             )
         }

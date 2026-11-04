@@ -74,7 +74,7 @@ fun HomeScreen(onOpen: (url: String, title: String) -> Unit) {
                 0 -> NewsTab(reload = reload, onOpen = onOpen)
                 1 -> MatchTab(reload = reload, onOpen = onOpen)
                 2 -> CommunityTab(reload = reload, onOpen = onOpen)
-                else -> DataTab(reload = reload)
+                else -> DataTab(reload = reload, onOpen = onOpen)
             }
         }
     }

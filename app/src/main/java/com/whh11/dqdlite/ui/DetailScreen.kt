@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.whh11.dqdlite.util.CommentBridge
 import com.whh11.dqdlite.util.Injector
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -163,6 +164,10 @@ fun DetailScreen(url: String, title: String, onBack: () -> Unit) {
                                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                                 userAgentString = userAgentString.replace("; wv", "")
                             }
+
+                            // 评论接口跨域（n.dongqiudi.com → api.dongqiudi.com），
+                            // 页面内 fetch 会被 CORS 拦掉，改由原生侧代取
+                            addJavascriptInterface(CommentBridge(this), "DqdNative")
 
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(v: WebView?, u: String?, f: Bitmap?) {

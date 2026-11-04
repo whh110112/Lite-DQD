@@ -83,7 +83,13 @@ data class DqdLeague(
     val scorersUrl: String = "",
     val assistsUrl: String = "",
     val isBasketball: Boolean = false,
-    val description: String = ""
+    val description: String = "",
+    /**
+     * 懂球帝官方数据中台的 competition_id。
+     * 有值时优先走 sport-data 官方接口（带 team_id，可点进球队页）；
+     * 为 0 时退回第三方榜单（无 team_id，球队页降级为「该队新闻」）。
+     */
+    val competitionId: Int = 0
 )
 
 /** 积分榜行数据 */
@@ -100,7 +106,11 @@ data class DqdStandingItem(
     val winRate: String = "",
     val streak: String = "",
     val gamesBehind: String = "",
-    val groupTitle: String = ""
+    val groupTitle: String = "",
+    /** 懂球帝球队 id，用于打开球队详情页；空表示该榜无此数据 */
+    val teamId: String = "",
+    /** 排名升降：正数上升，负数下降，0 持平，null 未知 */
+    val rankDelta: Int? = null
 )
 
 /** 球员榜行数据（射手、助攻） */
@@ -111,5 +121,9 @@ data class DqdPlayerItem(
     val teamName: String,
     val teamLogo: String?,
     val count: String,
-    val subCount: String = ""
+    val subCount: String = "",
+    /** 球员 id，用于打开球员详情页 */
+    val playerId: String = "",
+    /** 所属球队 id，用于从球员页跳回球队 */
+    val teamId: String = ""
 )
