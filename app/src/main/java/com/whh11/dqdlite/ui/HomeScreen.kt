@@ -1,5 +1,8 @@
 package com.whh11.dqdlite.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,29 +21,38 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.material.icons.rounded.BrightnessAuto
-import androidx.compose.material.icons.rounded.DarkMode
-import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -50,334 +62,410 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.whh11.dqdlite.R
 import com.whh11.dqdlite.data.DqdApi
+import com.whh11.dqdlite.data.Match
 import com.whh11.dqdlite.data.News
-import com.whh11.dqdlite.data.relTime
+import com.whh11.dqdlite.data.SportCategory
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onOpen: (url: String, title: String) -> Unit) {
-    var tab by rememberSaveable { mutableIntStateOf(0) }
-    var reload by remember { mutableIntStateOf(0) }
+fun NewsHomeTab(
+    scrollToTopTrigger: Int,
+    onOpenArticle: (News) -> Unit,
+    onOpenMatch: (String) -> Unit,
+    onOpenSearch: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    val tabs = DqdApi.TABS
+    var tabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var items by remember { mutableStateOf<List<News>>(emptyList()) }
+    var nextUrl by remember { mutableStateOf<String?>(null) }
+    var focusMatches by remember { mutableStateOf<List<Match>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
+    var loadingMore by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    val headerVisible by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset < 120
+        }
+    }
+
+    suspend fun loadInitial(isRefresh: Boolean = false) {
+        if (isRefresh) refreshing = true else loading = true
+        error = null
+        runCatching { DqdApi.news(tabs[tabIndex].id) }
+            .onSuccess { page ->
+                items = page.items
+                nextUrl = page.nextUrl
+            }
+            .onFailure { error = it.message ?: "网络连接异常" }
+        if (tabIndex == 0 && (focusMatches.isEmpty() || isRefresh)) {
+            runCatching { DqdApi.matches(SportCategory.ALL) }
+                .onSuccess { list ->
+                    focusMatches = list.sortedByDescending { if (it.isLive) 2 else if (!it.isPlayed) 1 else 0 }.take(8)
+                }
+        }
+        loading = false
+        refreshing = false
+    }
+
+    suspend fun loadMore() {
+        val next = nextUrl ?: return
+        if (loadingMore) return
+        loadingMore = true
+        runCatching { DqdApi.news(tabs[tabIndex].id, nextUrl = next) }
+            .onSuccess { page ->
+                val seen = items.map { it.id }.toHashSet()
+                val appended = page.items.filter { it.id == 0L || it.id !in seen }
+                items = items + appended
+                nextUrl = if (appended.isEmpty()) null else page.nextUrl
+            }
+        loadingMore = false
+    }
+
+    LaunchedEffect(tabIndex) {
+        items = emptyList()
+        nextUrl = null
+        loadInitial(isRefresh = false)
+    }
+
+    LaunchedEffect(scrollToTopTrigger) {
+        if (scrollToTopTrigger > 0) {
+            listState.animateScrollToItem(0)
+            loadInitial(isRefresh = true)
+        }
+    }
+
+    // 触底自动加载下一页
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val total = listState.layoutInfo.totalItemsCount
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            total > 5 && lastVisible >= total - 4 && nextUrl != null && !loadingMore
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) loadMore()
+    }
 
     Column(
         Modifier
             .fillMaxSize()
             .background(DqdColors.Bg)
     ) {
-        BrandHeader(onReload = { reload++ })
-        SegmentTabs(
-            labels = listOf("资讯", "赛程", "圈子", "数据"),
-            selected = tab,
-            onSelect = { tab = it }
-        )
-        Box(Modifier.fillMaxSize()) {
-            when (tab) {
-                0 -> NewsTab(reload = reload, onOpen = onOpen)
-                1 -> MatchTab(reload = reload, onOpen = onOpen)
-                2 -> CommunityTab(reload = reload, onOpen = onOpen)
-                else -> DataTab(reload = reload, onOpen = onOpen)
+        // 顶部品牌栏：随列表下滑平滑收起，释放垂直空间
+        AnimatedVisibility(
+            visible = headerVisible,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(DqdColors.Card)
+                    .statusBarsPadding()
+                    .padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_brand),
+                    contentDescription = "懂球帝",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                )
+                Spacer(Modifier.width(9.dp))
+                Text(
+                    "懂球帝",
+                    color = DqdColors.TextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = (-0.3).sp
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onOpenSearch) {
+                    Icon(Icons.Outlined.Search, contentDescription = "搜索", tint = DqdColors.TextPrimary)
+                }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Outlined.Person, contentDescription = "我的与设置", tint = DqdColors.TextPrimary)
+                }
+            }
+        }
+
+        // 频道下划线 Tab 栏（白底 + 绿色短横杠，回归懂球帝原版清爽感）
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(DqdColors.Card)
+                .then(if (!headerVisible) Modifier.statusBarsPadding() else Modifier)
+        ) {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                itemsIndexed(tabs) { idx, t ->
+                    val active = idx == tabIndex
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clickable { tabIndex = idx }
+                            .padding(top = 8.dp, bottom = 6.dp)
+                    ) {
+                        Text(
+                            t.label,
+                            color = if (active) DqdColors.Primary else DqdColors.TextSecondary,
+                            fontSize = if (active) 15.5.sp else 14.5.sp,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+                        )
+                        Spacer(Modifier.height(5.dp))
+                        Box(
+                            Modifier
+                                .width(if (active) 18.dp else 0.dp)
+                                .height(2.5.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(DqdColors.Primary)
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(thickness = 0.5.dp, color = DqdColors.Divider)
+        }
+
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = { scope.launch { loadInitial(isRefresh = true) } },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            when {
+                loading && items.isEmpty() -> LoadingBox()
+                error != null && items.isEmpty() -> ErrorRetryBox(error!!, onRetry = { scope.launch { loadInitial() } })
+                items.isEmpty() -> EmptyBox("该栏目暂无资讯")
+                else -> {
+                    val bannerItems = remember(items, tabIndex) {
+                        if (tabIndex == 0) items.filter { !it.thumb.isNullOrBlank() }.take(4) else emptyList()
+                    }
+                    val bannerIds = remember(bannerItems) { bannerItems.map { it.id }.toHashSet() }
+                    val feedItems = remember(items, bannerIds) {
+                        if (bannerIds.isEmpty()) items else items.filter { it.id !in bannerIds }
+                    }
+
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        // 1. 头条焦点大图轮播
+                        if (bannerItems.isNotEmpty()) {
+                            item(key = "hero_banner") {
+                                HeroBannerCarousel(bannerItems, onOpenArticle)
+                            }
+                        }
+
+                        // 2. 今日焦点战实时横卡（参考 hupuX & 懂球帝头条）
+                        if (tabIndex == 0 && focusMatches.isNotEmpty()) {
+                            item(key = "score_strip") {
+                                FocusMatchStrip(focusMatches, onOpenMatch)
+                            }
+                        }
+
+                        // 3. 高密度懂球帝原生资讯流
+                        itemsIndexed(feedItems, key = { i, n -> "${n.id}_$i" }) { i, n ->
+                            NewsRowItem(news = n, onClick = { onOpenArticle(n) })
+                            if (i != feedItems.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier
+                                        .background(DqdColors.Card)
+                                        .padding(horizontal = 16.dp),
+                                    thickness = 0.5.dp,
+                                    color = DqdColors.Divider
+                                )
+                            }
+                        }
+
+                        // 4. 分页加载底部指示器
+                        item(key = "footer") {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                when {
+                                    loadingMore -> CircularProgressIndicator(
+                                        color = DqdColors.Primary,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    nextUrl == null -> Text("已经到底了", color = DqdColors.TextTertiary, fontSize = 12.sp)
+                                    else -> Text("上滑加载更多", color = DqdColors.TextTertiary, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun BrandHeader(onReload: () -> Unit) {
-    val context = LocalContext.current
-    val currentMode = ThemeManager.mode
-
-    Row(
+private fun HeroBannerCarousel(
+    banners: List<News>,
+    onOpenArticle: (News) -> Unit
+) {
+    val pagerState = rememberPagerState(pageCount = { banners.size })
+    Box(
         Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(start = 16.dp, end = 6.dp, top = 8.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .background(DqdColors.Card)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Image(
-            painter = painterResource(R.drawable.ic_brand),
-            contentDescription = "懂球帝",
-            contentScale = ContentScale.Fit,
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier
-                .size(30.dp)
-                .clip(RoundedCornerShape(8.dp))
-        )
-        Spacer(Modifier.width(10.dp))
-        Text(
-            "懂球帝",
-            color = DqdColors.TextPrimary,
-            fontSize = 19.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = (-0.3).sp
-        )
-        Spacer(Modifier.width(7.dp))
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(5.dp))
-                .background(DqdColors.Green.copy(alpha = 0.14f))
-                .padding(horizontal = 5.dp, vertical = 2.dp)
-        ) {
-            Text("LITE", color = DqdColors.Green, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.weight(1f))
-
-        // 主题切换按钮（跟随系统 -> 白天 -> 夜间）
-        IconButton(onClick = {
-            val nextMode = when (currentMode) {
-                ThemeMode.SYSTEM -> ThemeMode.LIGHT
-                ThemeMode.LIGHT -> ThemeMode.DARK
-                ThemeMode.DARK -> ThemeMode.SYSTEM
-            }
-            ThemeManager.set(context, nextMode)
-            Toast.makeText(context, "切换模式: ${nextMode.label}", Toast.LENGTH_SHORT).show()
-        }) {
-            val icon = when (currentMode) {
-                ThemeMode.SYSTEM -> Icons.Rounded.BrightnessAuto
-                ThemeMode.LIGHT -> Icons.Rounded.LightMode
-                ThemeMode.DARK -> Icons.Rounded.DarkMode
-            }
-            Icon(
-                icon,
-                contentDescription = "切换主题模式",
-                tint = DqdColors.TextSecondary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
-        IconButton(onClick = onReload) {
-            Icon(
-                Icons.Rounded.Refresh,
-                contentDescription = "刷新",
-                tint = DqdColors.TextSecondary,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-@Composable
-fun SegmentTabs(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    Row(Modifier.padding(start = 16.dp, top = 6.dp, bottom = 2.dp)) {
-        labels.forEachIndexed { i, label ->
-            val active = i == selected
-            Column(
+                .fillMaxWidth()
+                .height(190.dp)
+                .clip(RoundedCornerShape(12.dp))
+        ) { page ->
+            val item = banners[page]
+            Box(
                 Modifier
-                    .clickable { onSelect(i) }
-                    .padding(end = 22.dp, top = 4.dp, bottom = 4.dp)
+                    .fillMaxSize()
+                    .clickable { onOpenArticle(item) }
             ) {
-                Text(
-                    label,
-                    color = if (active) DqdColors.TextPrimary else DqdColors.TextTertiary,
-                    fontSize = 17.sp,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal
+                AsyncImage(
+                    model = item.thumb,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-                Spacer(Modifier.height(6.dp))
                 Box(
                     Modifier
-                        .width(if (active) 20.dp else 0.dp)
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(DqdColors.Green)
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)),
+                                startY = 120f
+                            )
+                        )
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun NewsTab(reload: Int, onOpen: (String, String) -> Unit) {
-    val tabs = DqdApi.TABS
-    var tabIndex by rememberSaveable { mutableIntStateOf(0) }
-    var items by remember { mutableStateOf<List<News>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(tabIndex, reload) {
-        loading = true
-        error = null
-        runCatching { DqdApi.news(tabs[tabIndex].id) }
-            .onSuccess { items = it }
-            .onFailure { error = it.message ?: "网络异常" }
-        loading = false
-    }
-
-    Column(Modifier.fillMaxSize()) {
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            itemsIndexed(tabs.map { it.label }) { i, label ->
-                val active = i == tabIndex
-                Box(
+                Column(
                     Modifier
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (active) DqdColors.Green.copy(alpha = 0.13f) else DqdColors.Surface)
-                        .clickable { tabIndex = i }
-                        .padding(horizontal = 13.dp, vertical = 7.dp)
+                        .align(Alignment.BottomStart)
+                        .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                 ) {
                     Text(
-                        label,
-                        color = if (active) DqdColors.Green else DqdColors.TextSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal
+                        item.title,
+                        color = Color.White,
+                        fontSize = 15.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        lineHeight = 21.sp
                     )
                 }
             }
         }
 
-        when {
-            loading && items.isEmpty() -> LoadingBlock()
-            error != null && items.isEmpty() -> ErrorBlock(error!!)
-            items.isEmpty() -> EmptyBlock("这个栏目暂时没有内容")
-            else -> {
-                // 集锦栏目的官方接口已停更（最后一批内容为 2024-10），
-                // 不提示的话用户会以为 App 抓挂了
-                val staleDays = remember(items) {
-                    val newest = items.maxOfOrNull { it.showTime } ?: 0L
-                    if (newest <= 0L) 0
-                    else ((System.currentTimeMillis() / 1000 - newest) / 86400).toInt()
-                }
-                val isHighlights = tabs[tabIndex].id == DqdApi.TAB_HIGHLIGHTS
-
-                LazyColumn(
-                    contentPadding = PaddingValues(bottom = 26.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    if (staleDays > 90) {
-                        item { StaleNotice(days = staleDays, isHighlights = isHighlights) }
-                    }
-                    itemsIndexed(items) { i, n ->
-                        NewsRow(n, videoLabel = if (isHighlights) "集锦" else "视频") {
-                            onOpen(n.detailUrl, n.title)
-                        }
-                        if (i != items.lastIndex) {
-                            Box(
-                                Modifier
-                                    .padding(start = 16.dp, end = 16.dp)
-                                    .height(1.dp)
-                                    .fillMaxWidth()
-                                    .background(DqdColors.Line.copy(alpha = 0.55f))
-                            )
-                        }
-                    }
-                }
+        // 右下角指示点
+        Row(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 12.dp, bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            repeat(banners.size) { idx ->
+                Box(
+                    Modifier
+                        .size(width = if (idx == pagerState.currentPage) 14.dp else 5.dp, height = 5.dp)
+                        .clip(CircleShape)
+                        .background(if (idx == pagerState.currentPage) DqdColors.BrandGreen else Color.White.copy(alpha = 0.5f))
+                )
             }
         }
     }
 }
 
 @Composable
-private fun NewsRow(n: News, videoLabel: String = "视频", onClick: () -> Unit) {
-    Row(
-        Modifier
+private fun FocusMatchStrip(
+    matches: List<Match>,
+    onOpenMatch: (String) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.Top
+            .background(DqdColors.Bg)
+            .padding(vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(Modifier.weight(1f)) {
-            if (n.isTop || n.isVideo) {
-                Row(Modifier.padding(bottom = 5.dp)) {
-                    if (n.isTop) {
-                        MiniTag("置顶", DqdColors.Accent)
-                        Spacer(Modifier.width(5.dp))
-                    }
-                    if (n.isVideo) MiniTag(videoLabel, DqdColors.Green)
-                }
-            }
-            Text(
-                n.title,
-                color = DqdColors.TextPrimary,
-                fontSize = 15.5.sp,
-                lineHeight = 22.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val meta = listOfNotNull(
-                    n.category.takeIf { it.isNotBlank() },
-                    n.subCategory.takeIf { it.isNotBlank() && it != n.category }
-                ).joinToString(" · ")
-                if (meta.isNotBlank()) {
-                    Text(meta, color = DqdColors.Green.copy(alpha = 0.85f), fontSize = 11.sp)
-                    Spacer(Modifier.width(8.dp))
-                }
-                Text(relTime(n.showTime), color = DqdColors.TextTertiary, fontSize = 11.sp)
-                if (n.comments > 0) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("${n.comments} 评论", color = DqdColors.TextTertiary, fontSize = 11.sp)
-                }
-            }
-        }
-        n.thumb?.let { url ->
-            Spacer(Modifier.width(12.dp))
-            AsyncImage(
-                model = url,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(width = 104.dp, height = 70.dp)
+        items(matches, key = { it.id }) { m ->
+            Column(
+                Modifier
+                    .width(156.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(DqdColors.SurfaceHigh)
-            )
+                    .background(DqdColors.Card)
+                    .clickable { onOpenMatch(m.id) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        m.competition,
+                        color = DqdColors.TextTertiary,
+                        fontSize = 10.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (m.isLive) m.period.ifBlank { "直播中" } else if (m.isPlayed) "完场" else m.timeLabel,
+                        color = if (m.isLive) DqdColors.Red else DqdColors.TextTertiary,
+                        fontSize = 10.sp,
+                        fontWeight = if (m.isLive) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                MiniTeamScoreLine(m.logoA, m.teamA, if (m.hasScore) m.scoreA else "-", m.teamAWon)
+                Spacer(Modifier.height(4.dp))
+                MiniTeamScoreLine(m.logoB, m.teamB, if (m.hasScore) m.scoreB else "-", m.teamBWon)
+            }
         }
     }
 }
 
 @Composable
-fun MiniTag(text: String, color: androidx.compose.ui.graphics.Color) {
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(color.copy(alpha = 0.15f))
-            .padding(horizontal = 5.dp, vertical = 1.5.dp)
-    ) {
-        Text(text, color = color, fontSize = 9.5.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun StaleNotice(days: Int, isHighlights: Boolean) {
-    val text = if (isHighlights) {
-        "集锦栏目官方接口已停止更新，下面是 2024 年 10 月前的存档；新集锦可去「赛程」里点比赛看"
-    } else {
-        "该栏目已 $days 天未更新"
-    }
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(DqdColors.Accent.copy(alpha = 0.10f))
-            .padding(horizontal = 12.dp, vertical = 9.dp)
-    ) {
-        Text(text, color = DqdColors.Accent, fontSize = 11.5.sp, lineHeight = 17.sp)
-    }
-}
-
-@Composable
-fun LoadingBlock() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("加载中…", color = DqdColors.TextTertiary, fontSize = 13.sp)
-    }
-}
-
-@Composable
-fun ErrorBlock(message: String) {
-    Column(
-        Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("没抓到数据", color = DqdColors.TextSecondary, fontSize = 14.sp)
-        Spacer(Modifier.height(6.dp))
-        Text(message, color = DqdColors.TextTertiary, fontSize = 12.sp)
-    }
-}
-
-@Composable
-fun EmptyBlock(text: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text, color = DqdColors.TextTertiary, fontSize = 13.sp)
+private fun MiniTeamScoreLine(logo: String?, name: String, score: String, bold: Boolean) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        if (!logo.isNullOrBlank()) {
+            AsyncImage(
+                model = logo,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(
+            name,
+            color = DqdColors.TextPrimary,
+            fontSize = 12.5.sp,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            score,
+            color = if (bold) DqdColors.TextPrimary else DqdColors.TextSecondary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }

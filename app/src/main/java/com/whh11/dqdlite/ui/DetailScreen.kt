@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -46,9 +47,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.whh11.dqdlite.util.CommentBridge
 import com.whh11.dqdlite.util.Injector
 
+/**
+ * 仅作视频播放及外部网页兜底使用（常规文章与比赛均已 100% 原生渲染）。
+ */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun DetailScreen(url: String, title: String, onBack: () -> Unit) {
@@ -56,12 +59,9 @@ fun DetailScreen(url: String, title: String, onBack: () -> Unit) {
     val isDark = LocalIsDark.current
     var progress by remember { mutableIntStateOf(0) }
     var web by remember { mutableStateOf<WebView?>(null) }
-
-    // 全屏视频播放容器与回调
     var customVideoView by remember { mutableStateOf<View?>(null) }
     var customViewCallback by remember { mutableStateOf<WebChromeClient.CustomViewCallback?>(null) }
 
-    // 物理返回键：优先退出全屏视频，其次 webview 历史返回，最后关闭页面
     BackHandler(enabled = true) {
         if (customVideoView != null) {
             customViewCallback?.onCustomViewHidden()
@@ -83,20 +83,13 @@ fun DetailScreen(url: String, title: String, onBack: () -> Unit) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(DqdColors.Surface)
+                    .background(DqdColors.Card)
                     .statusBarsPadding()
                     .padding(start = 4.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = {
-                    if (web?.canGoBack() == true) web?.goBack() else onBack()
-                }) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "返回",
-                        tint = DqdColors.TextPrimary,
-                        modifier = Modifier.size(22.dp)
-                    )
+                IconButton(onClick = { if (web?.canGoBack() == true) web?.goBack() else onBack() }) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回", tint = DqdColors.TextPrimary, modifier = Modifier.size(22.dp))
                 }
                 Text(
                     text = title,
@@ -107,30 +100,20 @@ fun DetailScreen(url: String, title: String, onBack: () -> Unit) {
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = { web?.reload() }) {
-                    Icon(
-                        Icons.Rounded.Refresh,
-                        contentDescription = "刷新",
-                        tint = DqdColors.TextSecondary,
-                        modifier = Modifier.size(19.dp)
-                    )
+                    Icon(Icons.Rounded.Refresh, contentDescription = "刷新", tint = DqdColors.TextSecondary, modifier = Modifier.size(19.dp))
                 }
                 IconButton(onClick = {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(web?.url ?: url))
-                    context.startActivity(intent)
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(web?.url ?: url))) }
                 }) {
-                    Icon(
-                        Icons.Rounded.OpenInBrowser,
-                        contentDescription = "浏览器打开",
-                        tint = DqdColors.TextSecondary,
-                        modifier = Modifier.size(19.dp)
-                    )
+                    Icon(Icons.Rounded.OpenInBrowser, contentDescription = "浏览器打开", tint = DqdColors.TextSecondary, modifier = Modifier.size(19.dp))
                 }
             }
+            HorizontalDivider(thickness = 0.5.dp, color = DqdColors.Divider)
 
             if (progress in 1..99) {
                 LinearProgressIndicator(
                     progress = { progress / 100f },
-                    color = DqdColors.Green,
+                    color = DqdColors.Primary,
                     trackColor = DqdColors.SurfaceHigh,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -147,86 +130,53 @@ fun DetailScreen(url: String, title: String, onBack: () -> Unit) {
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
-                            val bgColor = if (isDark) 0xFF071009.toInt() else 0xFFFFFFFF.toInt()
-                            setBackgroundColor(bgColor)
-
+                            setBackgroundColor(if (isDark) 0xFF111214.toInt() else 0xFFFFFFFF.toInt())
                             settings.apply {
                                 javaScriptEnabled = true
                                 domStorageEnabled = true
-                                databaseEnabled = true
                                 loadWithOverviewMode = true
                                 useWideViewPort = true
-                                builtInZoomControls = false
-                                displayZoomControls = false
                                 mediaPlaybackRequiresUserGesture = false
-                                allowFileAccess = true
-                                allowContentAccess = true
                                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                                 userAgentString = userAgentString.replace("; wv", "")
                             }
-
-                            // 评论接口跨域（n.dongqiudi.com → api.dongqiudi.com），
-                            // 页面内 fetch 会被 CORS 拦掉，改由原生侧代取
-                            addJavascriptInterface(CommentBridge(this), "DqdNative")
-
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(v: WebView?, u: String?, f: Bitmap?) {
                                     progress = 1
                                     v?.evaluateJavascript(Injector.script(isDark), null)
                                 }
-
                                 override fun onPageCommitVisible(v: WebView?, u: String?) {
                                     v?.evaluateJavascript(Injector.script(isDark), null)
                                 }
-
                                 override fun onPageFinished(v: WebView?, u: String?) {
                                     progress = 100
                                     v?.evaluateJavascript(Injector.script(isDark), null)
                                 }
-
                                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                     val target = request?.url?.toString().orEmpty()
-                                    if (target.startsWith("http://") || target.startsWith("https://")) {
-                                        return false
-                                    }
-                                    return true
+                                    return !(target.startsWith("http://") || target.startsWith("https://"))
                                 }
                             }
-
                             webChromeClient = object : WebChromeClient() {
-                                override fun onProgressChanged(v: WebView?, newProgress: Int) {
-                                    progress = newProgress
-                                    if (newProgress in 15..95) {
-                                        v?.evaluateJavascript(Injector.script(isDark), null)
-                                    }
-                                }
-
+                                override fun onProgressChanged(v: WebView?, newProgress: Int) { progress = newProgress }
                                 override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
                                     customVideoView = view
                                     customViewCallback = callback
                                 }
-
                                 override fun onHideCustomView() {
                                     customViewCallback?.onCustomViewHidden()
                                     customVideoView = null
                                     customViewCallback = null
                                 }
                             }
-
                             loadUrl(url)
                             web = this
                         }
-                    },
-                    update = { view ->
-                        val bgColor = if (isDark) 0xFF071009.toInt() else 0xFFFFFFFF.toInt()
-                        view.setBackgroundColor(bgColor)
-                        view.evaluateJavascript(Injector.script(isDark), null)
                     }
                 )
             }
         }
 
-        // 全屏视频播放图层（覆盖在最顶层）
         if (customVideoView != null) {
             AndroidView(
                 modifier = Modifier
@@ -234,10 +184,6 @@ fun DetailScreen(url: String, title: String, onBack: () -> Unit) {
                     .background(Color.Black),
                 factory = {
                     FrameLayout(it).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
                         addView(
                             customVideoView,
                             FrameLayout.LayoutParams(

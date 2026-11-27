@@ -1,6 +1,5 @@
 package com.whh11.dqdlite.ui
 
-import android.content.Context
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
@@ -8,131 +7,143 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
+import com.whh11.dqdlite.data.LocalStore
+import com.whh11.dqdlite.data.ThemeMode
 
-enum class ThemeMode(val label: String) {
-    SYSTEM("跟随系统"),
-    LIGHT("白天模式"),
-    DARK("夜间模式")
-}
+val LocalIsDark = compositionLocalOf { false }
+val LocalIsAmoled = compositionLocalOf { false }
 
-object ThemeManager {
-    var mode by mutableStateOf(ThemeMode.SYSTEM)
-        private set
-
-    fun init(context: Context) {
-        val sp = context.getSharedPreferences("dqd_pref", Context.MODE_PRIVATE)
-        val saved = sp.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
-        mode = runCatching { ThemeMode.valueOf(saved) }.getOrDefault(ThemeMode.SYSTEM)
-    }
-
-    fun set(context: Context, newMode: ThemeMode) {
-        mode = newMode
-        val sp = context.getSharedPreferences("dqd_pref", Context.MODE_PRIVATE)
-        sp.edit().putString("theme_mode", newMode.name).apply()
-    }
-}
-
-val LocalIsDark = compositionLocalOf { true }
-
+/**
+ * 懂球帝正统视觉语义 Token（参考 hupuX 设计哲学）：
+ * - 白底承载内容，草皮绿（#16B13A）克制点睛，绝不大面积铺荧光色块
+ * - 深色模式采用无色偏高级深灰，AMOLED 模式纯黑省电
+ */
 object DqdColors {
-    val Green = Color(0xFF00D11F)
-    val GreenSoft = Color(0xFF45E668)
-    val GreenDeep = Color(0xFF00A818)
-    val Accent = Color(0xFFFFC53D)
-    val Red = Color(0xFFE04E4C)
+    val BrandGreen = Color(0xFF16B13A)
+    val BrandGreenDark = Color(0xFF22C55E)
+    val Red = Color(0xFFE53935)
+    val Amber = Color(0xFFF59E0B)
+    val Blue = Color(0xFF2563EB)
 
-    val Primary: Color get() = Green
+    val Primary: Color
+        @Composable get() = if (LocalIsDark.current) BrandGreenDark else BrandGreen
+
+    val PrimaryContainer: Color
+        @Composable get() = if (LocalIsDark.current) Color(0xFF132A19) else Color(0xFFE8F7EC)
 
     val Bg: Color
-        @Composable get() = if (LocalIsDark.current) Color(0xFF071009) else Color(0xFFF4F6F4)
-
-    val Surface: Color
-        @Composable get() = if (LocalIsDark.current) Color(0xFF0E1A12) else Color(0xFFFFFFFF)
+        @Composable get() = when {
+            LocalIsDark.current && LocalIsAmoled.current -> Color(0xFF000000)
+            LocalIsDark.current -> Color(0xFF111214)
+            else -> Color(0xFFF5F6F8)
+        }
 
     val Card: Color
-        @Composable get() = Surface
+        @Composable get() = when {
+            LocalIsDark.current && LocalIsAmoled.current -> Color(0xFF000000)
+            LocalIsDark.current -> Color(0xFF1A1C20)
+            else -> Color(0xFFFFFFFF)
+        }
 
     val SurfaceHigh: Color
-        @Composable get() = if (LocalIsDark.current) Color(0xFF17261B) else Color(0xFFEBF0EB)
+        @Composable get() = when {
+            LocalIsDark.current && LocalIsAmoled.current -> Color(0xFF141414)
+            LocalIsDark.current -> Color(0xFF23262C)
+            else -> Color(0xFFF0F2F5)
+        }
 
-    val Line: Color
-        @Composable get() = if (LocalIsDark.current) Color(0xFF1F3325) else Color(0xFFE0E6E1)
-
-    val Border: Color
-        @Composable get() = Line
+    val Divider: Color
+        @Composable get() = when {
+            LocalIsDark.current && LocalIsAmoled.current -> Color(0xFF1C1C1C)
+            LocalIsDark.current -> Color(0xFF282C34)
+            else -> Color(0xFFE8EAEE)
+        }
 
     val TextPrimary: Color
-        @Composable get() = if (LocalIsDark.current) Color(0xFFE9F2EB) else Color(0xFF1A241C)
+        @Composable get() = if (LocalIsDark.current) Color(0xFFECEFF4) else Color(0xFF18181B)
 
     val TextSecondary: Color
-        @Composable get() = if (LocalIsDark.current) Color(0xFF86968B) else Color(0xFF617366)
+        @Composable get() = if (LocalIsDark.current) Color(0xFF9AA3B2) else Color(0xFF6B7280)
 
     val TextTertiary: Color
-        @Composable get() = if (LocalIsDark.current) Color(0xFF5C6B60) else Color(0xFF8C9B90)
+        @Composable get() = if (LocalIsDark.current) Color(0xFF687182) else Color(0xFF9CA3AF)
 }
 
-private val DarkScheme = darkColorScheme(
-    primary = DqdColors.Green,
-    onPrimary = Color(0xFF00210A),
-    primaryContainer = DqdColors.GreenDeep,
-    onPrimaryContainer = Color(0xFFBFF5C9),
-    secondary = DqdColors.Accent,
-    onSecondary = Color(0xFF241A00),
-    background = Color(0xFF071009),
-    onBackground = Color(0xFFE9F2EB),
-    surface = Color(0xFF0E1A12),
-    onSurface = Color(0xFFE9F2EB),
-    surfaceVariant = Color(0xFF17261B),
-    onSurfaceVariant = Color(0xFF86968B),
-    outline = Color(0xFF1F3325),
-    error = Color(0xFFE5484D)
+private val LightScheme = lightColorScheme(
+    primary = DqdColors.BrandGreen,
+    onPrimary = Color.White,
+    background = Color(0xFFF5F6F8),
+    onBackground = Color(0xFF18181B),
+    surface = Color.White,
+    onSurface = Color(0xFF18181B),
+    surfaceVariant = Color(0xFFF0F2F5),
+    onSurfaceVariant = Color(0xFF6B7280),
+    outline = Color(0xFFE8EAEE),
+    error = DqdColors.Red
 )
 
-private val LightScheme = lightColorScheme(
-    primary = DqdColors.GreenDeep,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFDCF7E1),
-    onPrimaryContainer = Color(0xFF003912),
-    secondary = DqdColors.Accent,
-    onSecondary = Color(0xFF241A00),
-    background = Color(0xFFF4F6F4),
-    onBackground = Color(0xFF1A241C),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF1A241C),
-    surfaceVariant = Color(0xFFEBF0EB),
-    onSurfaceVariant = Color(0xFF617366),
-    outline = Color(0xFFE0E6E1),
-    error = Color(0xFFE5484D)
+private val DarkScheme = darkColorScheme(
+    primary = DqdColors.BrandGreenDark,
+    onPrimary = Color(0xFF052E16),
+    background = Color(0xFF111214),
+    onBackground = Color(0xFFECEFF4),
+    surface = Color(0xFF1A1C20),
+    onSurface = Color(0xFFECEFF4),
+    surfaceVariant = Color(0xFF23262C),
+    onSurfaceVariant = Color(0xFF9AA3B2),
+    outline = Color(0xFF282C34),
+    error = Color(0xFFF87171)
+)
+
+private val AmoledScheme = DarkScheme.copy(
+    background = Color.Black,
+    surface = Color.Black,
+    surfaceVariant = Color(0xFF141414),
+    outline = Color(0xFF1C1C1C)
 )
 
 private val DqdType = Typography(
-    titleLarge = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp),
+    titleLarge = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp),
     titleMedium = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-    bodyLarge = TextStyle(fontSize = 15.sp, lineHeight = 23.sp),
-    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
-    labelSmall = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp)
+    bodyLarge = TextStyle(fontSize = 15.5.sp, lineHeight = 25.sp),
+    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 21.sp),
+    labelSmall = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium)
 )
 
 @Composable
 fun DqdTheme(content: @Composable () -> Unit) {
+    val mode by LocalStore.themeMode.collectAsState()
+    val amoled by LocalStore.amoled.collectAsState()
+    val fontScale by LocalStore.fontScale.collectAsState()
     val systemDark = isSystemInDarkTheme()
-    val isDark = when (ThemeManager.mode) {
+
+    val isDark = when (mode) {
         ThemeMode.SYSTEM -> systemDark
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
 
-    val scheme = if (isDark) DarkScheme else LightScheme
+    val scheme = when {
+        !isDark -> LightScheme
+        amoled -> AmoledScheme
+        else -> DarkScheme
+    }
 
-    CompositionLocalProvider(LocalIsDark provides isDark) {
+    val baseDensity = LocalDensity.current
+    CompositionLocalProvider(
+        LocalIsDark provides isDark,
+        LocalIsAmoled provides (isDark && amoled),
+        LocalDensity provides Density(baseDensity.density, baseDensity.fontScale * fontScale)
+    ) {
         MaterialTheme(colorScheme = scheme, typography = DqdType, content = content)
     }
 }

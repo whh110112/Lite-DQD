@@ -1,8 +1,8 @@
 package com.whh11.dqdlite.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,21 +14,25 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -45,86 +49,140 @@ import coil.compose.AsyncImage
 import com.whh11.dqdlite.data.DqdApi
 import com.whh11.dqdlite.data.Match
 import com.whh11.dqdlite.data.SportCategory
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun MatchTab(reload: Int, onOpen: (String, String) -> Unit) {
-    val categories = SportCategory.values()
+fun MatchTab(
+    scrollToTopTrigger: Int,
+    onOpenMatch: (String) -> Unit
+) {
+    val categories = SportCategory.entries
     var selectedCatIndex by rememberSaveable { mutableIntStateOf(0) }
     val currentCat = categories[selectedCatIndex]
 
     var matches by remember { mutableStateOf<List<Match>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(selectedCatIndex, reload) {
-        loading = true
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    suspend fun load(isRefresh: Boolean = false) {
+        if (isRefresh) refreshing = true else loading = true
         error = null
         runCatching { DqdApi.matches(currentCat) }
             .onSuccess { matches = it }
-            .onFailure { error = it.message ?: "网络异常" }
+            .onFailure { error = it.message ?: "赛程加载失败" }
         loading = false
+        refreshing = false
     }
 
-    Column(Modifier.fillMaxSize()) {
-        // 顶部项目赛程选择器
-        LazyRow(
+    LaunchedEffect(selectedCatIndex) { load() }
+
+    LaunchedEffect(scrollToTopTrigger) {
+        if (scrollToTopTrigger > 0) {
+            listState.animateScrollToItem(0)
+            load(isRefresh = true)
+        }
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(DqdColors.Bg)
+    ) {
+        // 顶栏 + 项目切换
+        Column(
             Modifier
                 .fillMaxWidth()
                 .background(DqdColors.Card)
-                .padding(vertical = 8.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .statusBarsPadding()
         ) {
-            itemsIndexed(categories) { index, cat ->
-                val active = index == selectedCatIndex
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (active) DqdColors.Primary else DqdColors.Border)
-                        .clickable { selectedCatIndex = index }
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        cat.label,
-                        color = if (active) Color.White else DqdColors.TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
-                    )
+            Text(
+                "比赛",
+                color = DqdColors.TextPrimary,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 6.dp)
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                itemsIndexed(categories) { idx, cat ->
+                    val active = idx == selectedCatIndex
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { selectedCatIndex = idx }
+                    ) {
+                        Text(
+                            cat.label,
+                            color = if (active) DqdColors.Primary else DqdColors.TextSecondary,
+                            fontSize = 14.5.sp,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Box(
+                            Modifier
+                                .width(if (active) 16.dp else 0.dp)
+                                .height(2.5.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(DqdColors.Primary)
+                        )
+                    }
                 }
             }
+            HorizontalDivider(thickness = 0.5.dp, color = DqdColors.Divider)
         }
 
-        Box(Modifier.fillMaxSize()) {
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = { scope.launch { load(isRefresh = true) } },
+            modifier = Modifier.fillMaxSize()
+        ) {
             when {
-                loading && matches.isEmpty() -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = DqdColors.Primary, modifier = Modifier.size(32.dp))
-                    }
-                }
-                error != null && matches.isEmpty() -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(error ?: "加载失败", color = DqdColors.TextSecondary, fontSize = 14.sp)
-                    }
-                }
-                matches.isEmpty() -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("${currentCat.label} 暂时没有比赛", color = DqdColors.TextSecondary, fontSize = 14.sp)
-                    }
-                }
+                loading && matches.isEmpty() -> LoadingBox()
+                error != null && matches.isEmpty() -> ErrorRetryBox(error!!, onRetry = { scope.launch { load() } })
+                matches.isEmpty() -> EmptyBox("${currentCat.label} 暂时没有比赛")
                 else -> {
-                    val grouped = matches.groupBy { it.competition }
+                    val grouped = remember(matches) { matches.groupBy { it.dateGroup } }
                     LazyColumn(
-                        Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
-                        grouped.forEach { (compName, list) ->
-                            item(key = "h_$compName") {
-                                CompetitionHeader(compName, list.firstOrNull()?.competitionColor)
+                        grouped.forEach { (dateStr, list) ->
+                            stickyHeader(key = "date_$dateStr") {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .background(DqdColors.Bg)
+                                        .padding(horizontal = 16.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        dateStr,
+                                        color = DqdColors.TextSecondary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("${list.size} 场", color = DqdColors.TextTertiary, fontSize = 11.sp)
+                                }
                             }
-                            itemsIndexed(list, key = { _, m -> m.id }) { _, match ->
-                                MatchRow(match = match, onClick = {
-                                    onOpen(match.detailUrl, "${match.teamA} vs ${match.teamB}")
-                                })
+                            itemsIndexed(list, key = { i, m -> "${m.id}_$i" }) { i, match ->
+                                DqdMatchRow(match = match, onClick = { onOpenMatch(match.id) })
+                                if (i != list.lastIndex) {
+                                    HorizontalDivider(
+                                        modifier = Modifier
+                                            .background(DqdColors.Card)
+                                            .padding(horizontal = 16.dp),
+                                        thickness = 0.5.dp,
+                                        color = DqdColors.Divider
+                                    )
+                                }
                             }
                         }
                     }
@@ -135,120 +193,124 @@ fun MatchTab(reload: Int, onOpen: (String, String) -> Unit) {
 }
 
 @Composable
-private fun CompetitionHeader(name: String, colorHex: String?) {
-    val barColor = colorHex?.let {
-        runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
-    } ?: DqdColors.Primary
-
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            Modifier
-                .size(width = 3.dp, height = 12.dp)
-                .background(barColor, RoundedCornerShape(1.dp))
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            name,
-            color = DqdColors.TextPrimary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+fun DqdMatchRow(match: Match, onClick: () -> Unit) {
+    val compColor = remember(match.competitionColor) {
+        match.competitionColor?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
     }
-}
-
-@Composable
-private fun MatchRow(match: Match, onClick: () -> Unit) {
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(8.dp))
             .background(DqdColors.Card)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 16.dp, vertical = 11.dp)
     ) {
-        // 主队
-        Row(
-            Modifier.weight(1f),
-            horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(width = 3.dp, height = 11.dp)
+                    .clip(RoundedCornerShape(1.5.dp))
+                    .background(compColor ?: DqdColors.Primary)
+            )
+            Spacer(Modifier.width(6.dp))
             Text(
-                match.teamA,
-                color = DqdColors.TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = if (match.hasScore && match.scoreA > match.scoreB) FontWeight.Bold else FontWeight.Normal,
+                match.competition,
+                color = DqdColors.TextSecondary,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.End
-            )
-            Spacer(Modifier.width(6.dp))
-            TeamLogo(match.logoA)
-        }
-
-        // 中间比分 / 时间
-        Column(
-            Modifier.width(80.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                match.centreLabel,
-                color = when {
-                    match.isLive -> DqdColors.Red
-                    match.hasScore -> DqdColors.TextPrimary
-                    else -> DqdColors.TextSecondary
-                },
-                fontSize = if (match.hasScore) 15.sp else 12.sp,
-                fontWeight = if (match.hasScore) FontWeight.Bold else FontWeight.Medium
+                modifier = Modifier.weight(1f)
             )
             Text(
-                match.stateLabel,
-                color = if (match.isLive) DqdColors.Red else DqdColors.TextSecondary,
-                fontSize = 10.sp
+                match.timeLabel,
+                color = DqdColors.TextTertiary,
+                fontSize = 11.sp
             )
         }
-
-        // 客队
+        Spacer(Modifier.height(8.dp))
         Row(
-            Modifier.weight(1f),
-            horizontalArrangement = Arrangement.Start,
+            Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TeamLogo(match.logoB)
-            Spacer(Modifier.width(6.dp))
-            Text(
-                match.teamB,
-                color = DqdColors.TextPrimary,
-                fontSize = 13.sp,
-                fontWeight = if (match.hasScore && match.scoreB > match.scoreA) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            // 主队
+            Row(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    match.teamA,
+                    color = DqdColors.TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = if (match.teamAWon) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End
+                )
+                Spacer(Modifier.width(8.dp))
+                TeamCrest(match.logoA, 22)
+            }
+
+            // 中间比分与状态（已修复数字比较）
+            Column(
+                Modifier.width(86.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    match.centreLabel,
+                    color = when {
+                        match.isLive -> DqdColors.Red
+                        match.hasScore -> DqdColors.TextPrimary
+                        else -> DqdColors.TextSecondary
+                    },
+                    fontSize = if (match.hasScore) 17.sp else 13.5.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    match.stateLabel,
+                    color = if (match.isLive) DqdColors.Red else DqdColors.TextTertiary,
+                    fontSize = 10.sp,
+                    maxLines = 1
+                )
+            }
+
+            // 客队
+            Row(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TeamCrest(match.logoB, 22)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    match.teamB,
+                    color = DqdColors.TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = if (match.teamBWon) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun TeamLogo(url: String?) {
+fun TeamCrest(url: String?, sizeDp: Int) {
     if (url.isNullOrBlank()) {
         Box(
             Modifier
-                .size(20.dp)
+                .size(sizeDp.dp)
                 .clip(CircleShape)
-                .background(DqdColors.Border)
+                .background(DqdColors.SurfaceHigh)
         )
     } else {
         AsyncImage(
             model = url,
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(sizeDp.dp)
         )
     }
 }
