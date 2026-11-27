@@ -5,14 +5,6 @@
 
 ---
 
-## 📸 应用界面截图
-
-| 资讯首页（头条与频道流） | 赛程中心（实时比分与前瞻） | 全品类联赛数据板 |
-| :---: | :---: | :---: |
-| ![资讯首页](docs/screenshots/dqd-1-news.png) | ![赛程中心](docs/screenshots/dqd-2-matches.png) | ![数据中心](docs/screenshots/dqd-3-data.png) |
-
----
-
 ## ✨ v3.0 ~ v3.1 核心特性
 
 ### 1. 原味视觉与高定阅读体验
